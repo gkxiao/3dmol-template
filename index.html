@@ -1,0 +1,1210 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3D 结构查看器</title>
+<style>
+  :root{
+    --bg:#f5f7fb; --panel:#ffffff; --line:#e4e9f2; --line2:#eef2f8;
+    --text:#1b2436; --muted:#6c7b92; --accent:#2563eb; --accent-soft:#eaf1ff;
+    --chip:#f3f6fb; --shadow:0 8px 30px rgba(25,45,85,.12);
+    --radius:10px;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{
+    font:13px/1.55 -apple-system,"Segoe UI","Microsoft YaHei","PingFang SC",Arial,sans-serif;
+    color:var(--text);background:var(--bg);overflow:hidden;
+  }
+  button,input,select{font-family:inherit;font-size:inherit;color:inherit}
+  button{cursor:pointer}
+  a{color:var(--accent)}
+
+  /* ---------- 布局 ---------- */
+  header{
+    height:56px;display:flex;align-items:center;gap:14px;padding:0 18px;
+    background:var(--panel);border-bottom:1px solid var(--line);
+  }
+  .brand{display:flex;align-items:baseline;gap:10px;min-width:0}
+  .brand b{font-size:15px;letter-spacing:.2px;white-space:nowrap}
+  .brand .sub{color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .hdr-spacer{flex:1}
+  .badge{
+    background:var(--chip);border:1px solid var(--line);border-radius:20px;
+    padding:3px 10px;font-size:11.5px;color:var(--muted);white-space:nowrap;
+  }
+  .hdr-btn{
+    border:1px solid var(--line);background:#fff;border-radius:8px;padding:6px 12px;
+    color:var(--text);font-size:12px;white-space:nowrap;
+  }
+  .hdr-btn:hover{border-color:#b9c9e6;background:var(--accent-soft)}
+  main{display:flex;height:calc(100% - 56px);min-height:0}
+
+  /* ---------- 左侧面板 ---------- */
+  aside{
+    width:336px;flex:none;background:var(--panel);border-right:1px solid var(--line);
+    overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;
+  }
+  aside::-webkit-scrollbar{width:8px}
+  aside::-webkit-scrollbar-thumb{background:#d9e1ee;border-radius:8px}
+  .panel-pad{padding:14px 16px 28px}
+  .sec{border-bottom:1px solid var(--line2);padding-bottom:14px;margin-bottom:14px}
+  .sec:last-child{border-bottom:0}
+  .sec h3{
+    margin:0 0 11px;font-size:12px;font-weight:700;color:var(--muted);
+    letter-spacing:.08em;text-transform:uppercase;display:flex;align-items:center;gap:8px;
+  }
+  .sec h3::before{content:"";width:3px;height:13px;background:var(--accent);border-radius:2px}
+  .row{display:flex;align-items:center;gap:8px;margin:7px 0}
+  .row label{flex:1;min-width:0}
+  .row .hint{color:var(--muted);font-size:11.5px}
+  select,input[type=text]{
+    width:100%;border:1px solid var(--line);border-radius:7px;background:#fff;
+    padding:6px 8px;outline:none;
+  }
+  select:focus,input[type=text]:focus{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+  input[type=checkbox]{accent-color:var(--accent);width:14px;height:14px;margin:0;cursor:pointer;flex:none}
+  input[type=range]{width:100%;accent-color:var(--accent)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+  .seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .seg button{
+    flex:1;border:0;background:#fff;padding:6px 4px;font-size:12px;color:var(--muted);
+    border-right:1px solid var(--line);
+  }
+  .seg button:last-child{border-right:0}
+  .seg button.on{background:var(--accent);color:#fff;font-weight:600}
+  .seg button:not(.on):hover{background:var(--accent-soft)}
+  .btn{
+    border:1px solid var(--line);background:#fff;border-radius:8px;padding:7px 10px;font-size:12px;
+  }
+  .btn:hover{border-color:#b9c9e6;background:var(--accent-soft)}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+  .btn.primary:hover{background:#1d4fd8}
+  .toolbar{display:flex;gap:6px;flex-wrap:wrap}
+  .toolbar .btn{flex:1;min-width:70px;text-align:center}
+  .switch-row{display:flex;align-items:center;gap:9px;margin:8px 0;cursor:pointer}
+  .switch-row span{flex:1}
+  .field-label{font-size:11.5px;color:var(--muted);margin:9px 0 4px;display:block}
+
+  /* ---------- 配体列表 ---------- */
+  .list-tools{display:flex;gap:6px;margin-bottom:8px}
+  .list-tools input[type=text]{flex:1;min-width:0}
+  .list-tools select{width:92px;flex:none}
+  .list-actions{display:flex;gap:6px;margin-bottom:9px}
+  .list-actions button{flex:1;font-size:11.5px;padding:5px 4px}
+  #ligList{max-height:44vh;overflow-y:auto;border:1px solid var(--line);border-radius:8px;background:#fff}
+  #ligList::-webkit-scrollbar{width:7px}
+  #ligList::-webkit-scrollbar-thumb{background:#d9e1ee;border-radius:7px}
+  .lig-group-head{
+    display:flex;align-items:center;gap:8px;padding:7px 9px;background:var(--chip);
+    border-bottom:1px solid var(--line2);font-weight:600;font-size:12px;
+  }
+  .lig-item{
+    display:grid;grid-template-columns:14px 11px 1fr auto;gap:1px 8px;
+    align-items:center;padding:6px 9px;border-bottom:1px solid var(--line2);
+    cursor:pointer;transition:background .12s;
+  }
+  .lig-item input[type=checkbox]{grid-column:1;grid-row:1 / span 2}
+  .lig-item .swatch{grid-column:2;grid-row:1 / span 2}
+  .lig-name{grid-column:3;grid-row:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
+  .lig-meta,.lig-err{grid-column:3;grid-row:2;font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lig-item .mini{grid-column:4;grid-row:1 / span 2}
+  .lig-item:last-child{border-bottom:0}
+  .lig-item:hover{background:#f7faff}
+  .lig-item.active{background:var(--accent-soft)}
+  .lig-item.dim{opacity:.55}
+  .swatch{width:11px;height:11px;border-radius:3px;flex:none;display:inline-block;box-shadow:inset 0 0 0 1px rgba(0,0,0,.12)}
+  .lig-err{color:#c0392b}
+  .mini{
+    border:1px solid var(--line);background:#fff;border-radius:6px;color:var(--muted);
+    font-size:10.5px;padding:2px 6px;flex:none;
+  }
+  .mini:hover{color:var(--accent);border-color:#b9c9e6}
+  .empty{padding:18px;text-align:center;color:var(--muted);font-size:12px}
+  .list-count{font-size:11px;color:var(--muted);margin-top:7px}
+
+  /* ---------- 3D 舞台 ---------- */
+  #stage{flex:1;min-width:0;position:relative;background:#fff;overflow:hidden}
+  #viewport{position:absolute;inset:0}
+  #viewport canvas{display:block}
+  .overlay{position:absolute;pointer-events:none}
+  #topHud{
+    top:12px;left:12px;display:flex;gap:6px;flex-wrap:wrap;max-width:calc(100% - 24px);
+    pointer-events:auto;
+  }
+  .hud-btn{
+    background:rgba(255,255,255,.92);border:1px solid var(--line);border-radius:8px;
+    padding:6px 11px;font-size:12px;box-shadow:0 2px 8px rgba(20,40,80,.07);color:var(--text);
+  }
+  .hud-btn:hover{border-color:#b9c9e6;background:#fff}
+  .hud-btn.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+  #legend{
+    top:12px;right:12px;max-width:220px;background:rgba(255,255,255,.94);
+    border:1px solid var(--line);border-radius:var(--radius);padding:9px 11px;
+    box-shadow:var(--shadow);font-size:11.5px;pointer-events:auto;
+  }
+  #legend .lg-title{font-weight:700;color:var(--muted);font-size:10.5px;letter-spacing:.06em;margin-bottom:6px}
+  #legend .lg-row{display:flex;align-items:center;gap:7px;margin:3px 0}
+  #legend .lg-row span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #detail{
+    bottom:46px;right:12px;width:286px;max-height:52%;overflow-y:auto;
+    background:rgba(255,255,255,.97);border:1px solid var(--line);border-radius:var(--radius);
+    box-shadow:var(--shadow);padding:12px 13px;pointer-events:auto;font-size:11.5px;
+  }
+  #detail.hidden,#legend.hidden,#help.hidden,#loading.hidden,#tooltip.hidden{display:none}
+  #detail .dt-head{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+  #detail .dt-head b{font-size:13px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #detail .close{border:0;background:none;color:var(--muted);font-size:17px;line-height:1;padding:0 2px}
+  #detail table{width:100%;border-collapse:collapse}
+  #detail td{padding:3px 0;border-bottom:1px solid var(--line2);vertical-align:top}
+  #detail td:first-child{color:var(--muted);width:46%;padding-right:8px}
+  #detail td:last-child{word-break:break-word}
+  #detail summary{cursor:pointer;color:var(--accent);margin-top:9px;font-size:11.5px}
+  #statusbar{
+    bottom:0;left:0;right:0;height:32px;display:flex;align-items:center;gap:14px;
+    padding:0 14px;background:rgba(255,255,255,.92);border-top:1px solid var(--line);
+    font-size:11.5px;color:var(--muted);pointer-events:auto;
+  }
+  #statusbar .s-main{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #tooltip{
+    position:absolute;z-index:20;background:rgba(28,38,56,.94);color:#fff;border-radius:7px;
+    padding:6px 9px;font-size:11.5px;line-height:1.5;pointer-events:none;max-width:230px;
+    box-shadow:0 4px 14px rgba(0,0,0,.2);
+  }
+  #loading{
+    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    flex-direction:column;gap:12px;background:#fff;z-index:30;color:var(--muted);font-size:13px;
+  }
+  .spinner{width:28px;height:28px;border:3px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  #help{
+    position:fixed;inset:0;background:rgba(20,32,52,.42);z-index:50;
+    display:flex;align-items:center;justify-content:center;padding:20px;
+  }
+  #help .box{
+    background:#fff;border-radius:14px;max-width:620px;width:100%;max-height:84vh;overflow-y:auto;
+    box-shadow:0 20px 60px rgba(0,0,0,.25);padding:22px 26px;
+  }
+  #help h2{margin:0 0 4px;font-size:17px}
+  #help h4{margin:18px 0 6px;font-size:12.5px;color:var(--accent)}
+  #help p,#help li{font-size:12.5px;color:#374559;margin:5px 0}
+  #help code{background:var(--chip);border:1px solid var(--line);border-radius:4px;padding:1px 5px;font-size:11.5px}
+  #help .foot{display:flex;justify-content:flex-end;margin-top:18px}
+  .fatal{
+    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    padding:30px;text-align:center;color:#b42318;font-size:14px;line-height:1.8;z-index:40;background:#fff;
+  }
+  @media(max-width:920px){
+    aside{width:290px}
+    #detail{width:240px}
+    .brand .sub{display:none}
+  }
+  @media(max-width:680px){
+    aside{position:absolute;left:0;top:0;bottom:0;z-index:15;box-shadow:var(--shadow);transform:translateX(-100%);transition:transform .2s}
+    aside.open{transform:translateX(0)}
+    #legend{display:none}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <button class="hdr-btn" id="togglePanel" title="显示/隐藏控制面板">面板</button>
+  <div class="brand">
+    <b>3D 结构查看器</b>
+    <span class="sub" id="hdrTitle">蛋白 · 配体 pose 离线浏览</span>
+  </div>
+  <div class="hdr-spacer"></div>
+  <span class="badge" id="hdrMeta">加载中</span>
+  <button class="hdr-btn" id="helpBtn">使用说明</button>
+</header>
+
+<main>
+  <aside id="panel">
+    <div class="panel-pad">
+
+      <div class="sec">
+        <h3>蛋白</h3>
+        <label class="switch-row"><input type="checkbox" id="proteinOn" checked><span>显示蛋白</span></label>
+        <span class="field-label">表示方式</span>
+        <div class="seg" id="protStyleSeg">
+          <button data-v="cartoon" class="on">卡通</button>
+          <button data-v="line">线框</button>
+          <button data-v="trace">Cα 骨架</button>
+        </div>
+        <span class="field-label">配色</span>
+        <div class="seg" id="protColorSeg">
+          <button data-v="ss" class="on">二级结构</button>
+          <button data-v="spectrum">彩虹</button>
+          <button data-v="mono">单色</button>
+        </div>
+        <div class="row" style="margin-top:9px">
+          <label for="protOpacity">不透明度</label>
+          <input type="range" id="protOpacity" min="20" max="100" value="92" style="width:120px">
+          <span class="hint" id="opacityVal">92%</span>
+        </div>
+        <label class="switch-row"><input type="checkbox" id="surfaceOn"><span>半透明分子表面</span></label>
+        <label class="switch-row"><input type="checkbox" id="pocketOn"><span>显示口袋残基（接触残基）</span></label>
+        <div class="row" id="pocketOpts" style="display:none">
+          <label for="pocketCut" class="hint">距离阈值</label>
+          <input type="range" id="pocketCut" min="30" max="80" value="45" style="flex:1">
+          <span class="hint" id="pocketCutVal">4.5 Å</span>
+        </div>
+        <label class="switch-row" id="pocketLabelRow" style="display:none"><input type="checkbox" id="pocketLabels"><span>标注残基名称</span></label>
+      </div>
+
+      <div class="sec">
+        <h3>配体</h3>
+        <div class="list-tools">
+          <input type="text" id="search" placeholder="搜索名称 / 任意属性" autocomplete="off">
+          <select id="sortSel" title="排序方式">
+            <option value="file">原顺序</option>
+            <option value="name">名称</option>
+            <option value="mw">分子量</option>
+            <option value="score">对接打分</option>
+            <option value="bif">BIF%</option>
+            <option value="sim">相似度</option>
+          </select>
+        </div>
+        <div class="list-actions">
+          <button class="btn" id="selAll">全选</button>
+          <button class="btn" id="selNone">清空</button>
+          <button class="btn" id="selOnlyRef">仅参考分子</button>
+        </div>
+        <div id="ligList"></div>
+        <div class="list-count" id="listCount"></div>
+        <span class="field-label">配体表示</span>
+        <div class="seg" id="ligStyleSeg">
+          <button data-v="stick" class="on">棍状</button>
+          <button data-v="bs">球棍</button>
+          <button data-v="line">线状</button>
+          <button data-v="sphere">空间填充</button>
+        </div>
+        <span class="field-label">配体配色</span>
+        <div class="seg" id="ligColorSeg">
+          <button data-v="molecule" class="on">按分子</button>
+          <button data-v="cpk">按元素</button>
+          <button data-v="solid">纯色</button>
+        </div>
+        <span class="field-label">氢原子显示</span>
+        <div class="seg" id="hSeg">
+          <button data-v="none">隐藏</button>
+          <button data-v="polar" class="on">仅极性氢</button>
+          <button data-v="all">全部氢</button>
+        </div>
+        <div class="hint" style="margin-top:5px;line-height:1.5">极性氢 = 与 N / O / S / P 相连的 H，便于观察氢键；配体与蛋白（线框 / 口袋侧链等原子级显示）统一适用，与其余原子采用相同样式，不单独高亮。SDF / PDB 中的全氢原子均保留；蛋白若不含氢则自动跳过。</div>
+      </div>
+
+      <div class="sec">
+        <h3>视图与导出</h3>
+        <div class="toolbar" style="margin-bottom:7px">
+          <button class="btn primary" id="btnFocus">聚焦可见配体</button>
+          <button class="btn" id="btnOverall">整体视图</button>
+        </div>
+        <div class="toolbar">
+          <button class="btn" id="btnPng">导出 PNG</button>
+          <button class="btn" id="btnSpin">自动旋转</button>
+          <button class="btn" id="btnMeasure">距离测量</button>
+        </div>
+        <div class="row" style="margin-top:9px">
+          <label class="hint">画布背景</label>
+          <div class="seg" id="bgSeg" style="flex:1">
+            <button data-v="light" class="on">浅色</button>
+            <button data-v="gray">灰</button>
+            <button data-v="dark">深色</button>
+          </div>
+        </div>
+        <div class="toolbar" style="margin-top:7px">
+          <button class="btn" id="btnCopyLink">复制当前选择链接</button>
+          <button class="btn" id="btnReset">恢复默认</button>
+        </div>
+      </div>
+
+      <div class="sec" style="border:0">
+        <h3>数据</h3>
+        <div id="dataInfo" class="hint" style="line-height:1.8"></div>
+      </div>
+
+    </div>
+  </aside>
+
+  <section id="stage">
+    <div id="viewport"></div>
+
+    <div id="topHud" class="overlay">
+      <button class="hud-btn" id="hudFocus">聚焦</button>
+      <button class="hud-btn" id="hudOverall">全景</button>
+      <button class="hud-btn" id="hudPocket">口袋残基</button>
+      <button class="hud-btn" id="hudSurface">表面</button>
+      <button class="hud-btn" id="hudLabels">残基标签</button>
+    </div>
+
+    <div id="legend" class="overlay hidden"></div>
+    <div id="detail" class="overlay hidden"></div>
+    <div id="tooltip" class="hidden"></div>
+
+    <div id="statusbar" class="overlay">
+      <span class="s-main" id="statusText">准备中…</span>
+      <span>左键旋转 · 滚轮缩放 · 右键平移 · 悬停查看原子</span>
+    </div>
+
+    <div id="loading"><div class="spinner"></div><div>正在载入 3D 结构…</div></div>
+  </section>
+</main>
+
+<div id="help" class="hidden">
+  <div class="box">
+    <h2>使用说明</h2>
+    <p>这是一个<b>完全离线</b>的 3D 结构查看器。把整个文件夹压缩发给同事，对方解压后<b>双击 index.html</b> 即可使用：不需要安装 PyMOL / Schrödinger，不需要联网，也不需要启动服务器。建议用 Chrome / Edge / Firefox 打开。</p>
+
+    <h4>基本操作</h4>
+    <ul>
+      <li>左侧「配体」列表勾选要显示的分子；点击名称可查看该分子的全部 SDF 属性并自动聚焦。</li>
+      <li>「氢原子显示」默认<b>仅极性氢</b>（与 N / O / S / P 相连的 H，用于观察氢键），可切换为「隐藏」或「全部氢」。规则对配体和蛋白一致：蛋白在<b>线框</b>或<b>口袋残基侧链</b>等原子级表示下，极性氢以与蛋白原子完全相同的 line / stick 样式显示；cartoon 不画单原子时自动隐藏。PDB 没有显式氢则自动跳过。数量见分子详情卡片。</li>
+      <li>同名分子会被归为一组，组内每个 pose 可单独勾选，方便比较不同 pose。</li>
+      <li>鼠标左键拖动旋转，滚轮缩放，右键拖动平移；悬停原子显示所属分子 / 残基信息。</li>
+      <li>「口袋残基」按距离阈值找出与当前可见配体接触的蛋白残基并以棍状显示；可调 3.0–8.0 Å，并可打开残基标签。</li>
+      <li>「距离测量」开启后依次点击两个原子，显示两点间距离（Å），第三次点击清除。</li>
+      <li>「导出 PNG」把当前画面存成图片，可直接贴进 PPT / 报告。</li>
+      <li>快捷键：<code>R</code> 全景、<code>F</code> 聚焦、<code>H</code> 收起面板、<code>/</code> 搜索、<code>Esc</code> 关闭弹窗。</li>
+    </ul>
+
+    <h4>分享一组特定的分子组合</h4>
+    <p>点击「复制当前选择链接」，把得到的地址发给同事；同事打开自己的 index.html 后，把地址中 <code>#</code> 及其后面的部分粘到自己地址栏末尾并回车，就会显示相同的分子组合。</p>
+
+    <h4>换成自己的数据</h4>
+    <p>把新的 <code>*.pdb</code> 和 <code>*.sdf</code>（V2000 / V3000 均可）放进本文件夹，在此目录执行：</p>
+    <p><code>python build_data.py</code>（也可显式指定：<code>python build_data.py receptor.pdb ligands.sdf</code>）</p>
+    <p>脚本会重新生成 <code>data.js</code>，刷新页面即可。SDF 里的属性字段、同名 pose 分组都会被自动读取；打分 / 分子量 / 相似度等常见字段会自动识别用于列表摘要与排序（找不到的排序项会自动置灰），其余自定义属性在详情卡中可查；<b>不需要改动 HTML</b>。换项目后建议点一次「重置视图」，或直接用新的文件夹，界面设置不会串台。</p>
+    <p>3Dmol.js 2.5.5 原生支持 <b>V3000</b>，当前数据集的全部显式氢原子均可直接读入，因此默认使用原始 V3000 文件。若需要给其他软件用，可生成一份<b>保留全氢的 V2000 版</b>：<code>python build_data.py --v2000</code>，输出到 <code>v2000/*_v2000.sdf</code>；想让本查看器改用该文件，执行 <code>python build_data.py &lt;蛋白&gt;.pdb v2000/&lt;文件名&gt;</code> 再刷新即可。</p>
+
+    <h4>文件清单与许可</h4>
+    <p><code>index.html</code>（界面）、<code>data.js</code>（内嵌结构数据）、<code>3Dmol-min.js</code>（3Dmol.js 2.5.5，开源 3D 渲染库，本地副本）、<code>build_data.py</code>（数据生成脚本）、<code>v2000/</code>（V2000 兼容副本）、原始 PDB / SDF。3Dmol.js 采用 BSD-3-Clause 许可，全文见 <code>3Dmol-LICENSE.txt</code>。</p>
+    <p>结构文本之所以内嵌在 data.js 而不是运行时读取，是因为浏览器在 <code>file://</code> 下禁止 JS 直接读取同目录文件；这是保证「双击即用」的关键。</p>
+    <div class="foot"><button class="btn primary" id="helpClose">知道了</button></div>
+  </div>
+</div>
+
+<script src="3Dmol-min.js"></script>
+<script src="data.js"></script>
+<script>
+(function(){
+  'use strict';
+
+  var D = window.MOL_DATA;
+  var M3D = window['3Dmol'] || window.$3Dmol;
+  var $ = function(id){ return document.getElementById(id); };
+
+  if(!D || !M3D || !M3D.createViewer){
+    $('loading').classList.add('hidden');
+    var d = document.createElement('div');
+    d.className = 'fatal';
+    d.innerHTML = '未能载入 3Dmol.js 或 data.js。<br>请确认三个文件（index.html / 3Dmol-min.js / data.js）在同一个文件夹内，且用 Chrome / Edge 打开。';
+    $('stage').appendChild(d);
+    return;
+  }
+
+  /* ---------------- 状态 ---------------- */
+  var CPK = {H:0xb6c0cd,C:0x8a94a6,N:0x3050f8,O:0xe8352c,S:0xf0b429,F:0x39b26a,
+             Cl:0x1fb355,Br:0xa05a2c,I:0x8f3fa8,P:0xff8000,B:0xf7b6b6,Fe:0xd97236};
+  var BG = {light:'#ffffff', gray:'#eef1f6', dark:'#1b2433'};
+
+  var state = {
+    proteinVisible:true, protStyle:'cartoon', protColor:'ss', protOpacity:0.92,
+    surface:false, pocket:false, pocketCutoff:4.5, pocketLabels:false,
+    ligStyle:'stick', ligColor:'molecule', hMode:'polar',
+    bg:'light', spin:false, measure:false,
+    search:'', sort:'file', visible:{}, active:-1
+  };
+
+  function hslToHex(h,s,l){
+    var a=s*Math.min(l,1-l), f=function(n){
+      var k=(n+h/30)%12, c=l-a*Math.max(-1,Math.min(k-3,9-k,1));
+      return Math.round(255*c).toString(16).padStart(2,'0');
+    };
+    return '#'+f(0)+f(8)+f(4);
+  }
+  function groupColor(i){
+    if(i===0) return '#d9483b';            /* 第一个分子（通常为参考分子）用醒目色 */
+    return hslToHex((202 + i*137.508)%360, .60, .42);
+  }
+  function hexNum(hex){ return parseInt(hex.slice(1),16); }
+
+  /* 配体：按名称分组（同名 = 同一分子的不同 pose） */
+  var LIGS = D.ligands.map(function(l){
+    return Object.assign({}, l, {color:'#888', model:null, nAtoms:0, nH:0, nPolarH:0, polarSerials:[], err:''});
+  });
+  var groups = [];
+  var gmap = {};
+  LIGS.forEach(function(l){
+    if(!gmap.hasOwnProperty(l.group)){
+      gmap[l.group] = {name:l.group, items:[], color:groupColor(groups.length)};
+      groups.push(gmap[l.group]);
+    }
+    l.color = gmap[l.group].color;
+    gmap[l.group].items.push(l);
+  });
+
+  var viewer=null, P=null, surfaceBusy=false;
+  /* 蛋白氢原子：all = 全部 H 的 serial；polar = 与 N/O/S/P 相连的 H；bySerial 供按残基分组 */
+  var PROTEIN_H = {all:[], polar:[], bySerial:{}, nPolarBonds:0, nPolarDist:0};
+  var measurePoints=[], measureShapes=[];
+
+  /* ---------------- 工具 ---------------- */
+  function num(v){ var x=parseFloat(v); return isNaN(x)?null:x; }
+  function fmt(v,d){ var x=num(v); return x===null?'—':x.toFixed(d===undefined?2:d); }
+  /* ---------------- 通用字段探测（换一批 SDF 无需改代码） ---------------- */
+  /* 新数据的属性名不必与 Cresset / Glide 一致：按别名表挑出现率最高的数值字段 */
+  var FIELD_ALIASES = {
+    score:['r_i_docking_score','r_i_glide_gscore','r_psp_IFDScore','docking_score',
+           'Docking Score','Score','score','Binding Energy','Affinity','IC50','IC50_nM',
+           'pIC50','MMGBSA','DeltaG'],
+    mw:   ['MW_cresset','MW','Molecular Weight','MolWt','MolWeight','mol_weight',
+           'molecular_weight','Weight'],
+    bif:  ['BIF%','BIF','bif%','bif'],
+    sim:  ['Sim','Similarity','similarity','2D Sim','Tanimoto','FSim','SSim']
+  };
+  function pickField(kind){
+    var best=null, bestN=0;
+    FIELD_ALIASES[kind].forEach(function(k){
+      var n=LIGS.filter(function(l){ return l.props && num(l.props[k])!==null; }).length;
+      if(n>bestN){ bestN=n; best=k; }
+    });
+    return best;
+  }
+  var SORT_KEYS = {score:pickField('score'), mw:pickField('mw'),
+                   bif:pickField('bif'), sim:pickField('sim')};
+  var META_LABEL = {score:'dock', bif:'BIF', sim:'Sim', mw:'MW'};
+  function projectName(){
+    var s=(D.meta.sdfFile||'').replace(/\.(sdf|sd)$/i,'').replace(/[_-]+/g,' ').trim();
+    if(!s) return '复合物';
+    return s.replace(/\b\w/g,function(c){ return c.toUpperCase(); });
+  }
+  /* 界面状态按数据集隔离，避免新项目继承旧项目的显隐 / 配色设置 */
+  var STATE_KEY = 'mol3d_state_v1_' +
+    [D.meta.pdbFile||'', D.meta.sdfFile||'', D.meta.nLigands||LIGS.length]
+      .join('_').replace(/[^\w.-]/g,'_');
+
+  function visibleLigs(){ return LIGS.filter(function(l){ return !!state.visible[l.id]; }); }
+  function visibleModels(){ return visibleLigs().map(function(l){return l.model;}).filter(Boolean); }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function setStatus(t){ $('statusText').textContent = t; }
+  function toast(t){ setStatus(t); }
+
+  var KEY_FIELDS = [
+    ['r_i_docking_score','对接打分 Glide'],['r_i_glide_gscore','Glide gscore'],
+    ['r_i_glide_emodel','Glide emodel'],['r_psp_IFDScore','IFDScore'],
+    ['r_psp_Prime_Energy','Prime Energy'],['r_i_Potential_Energy-S-OPLS','Potential (S-OPLS)'],
+    ['MW_cresset','分子量 MW'],['SlogP_cresset','SlogP'],['TPSA_cresset','TPSA'],
+    ['HBA_cresset','HBA'],['HBD_cresset','HBD'],['Rof5_cresset','Ro5 违规数'],
+    ['Flexibility_cresset','柔性'],['Total Formal Charge','形式电荷'],
+    ['BIF%','BIF%'],['Sim','相似度 Sim'],['FSim','场相似 FSim'],['SSim','形状相似 SSim'],
+    ['2D Sim','2D 相似度'],['FScore','FScore'],['SScore','SScore'],
+    ['Cluster Number','聚类编号'],['Cluster Rank','聚类排名'],['Frequency','Frequency'],
+    ['Parent Title','母核'],['Experiment name','实验'],['Database','数据库'],
+    ['Preferred Pose_cresset','优选 pose'],['Ref_cresset','参考分子'],
+    ['Tags_cresset','标签'],['s_m_entry_id','Entry ID'],
+    ['Fragment SMILES','片段 SMILES'],['Cluster SMILES','聚类 SMILES'],
+    ['Attachment Types','连接点类型']
+  ];
+
+  function ligMeta(l){
+    var p=l.props||{}, out=[];
+    ['score','bif','sim','mw'].forEach(function(k){
+      var f=SORT_KEYS[k]; if(!f) return;
+      var v=p[f]; if(v===undefined || v==='') return;
+      var isNum=num(v)!==null;
+      var t=isNum ? fmt(v, k==='bif'?0:(k==='sim'?3:2)) : esc(v);
+      if(k==='bif' && isNum) t+='%';
+      out.push(META_LABEL[k]+' '+t);
+    });
+    return out.slice(0,3).join(' · ') || (l.nHeavy+' 重原子');
+  }
+
+  /* ---------------- 样式 ---------------- */
+  function protStyle(){
+    var op = state.protOpacity;
+    var colorSpec;
+    if(state.protColor==='ss'){
+      colorSpec = (M3D.ssColors && M3D.ssColors.Jmol)
+        ? {colorscheme:{prop:'ss', map:M3D.ssColors.Jmol}} : {color:0x93a5bd};
+    } else if(state.protColor==='spectrum'){ colorSpec = {color:'spectrum'}; }
+    else { colorSpec = {color:0x9aa9bd}; }
+    var st = {opacity:op};
+    Object.assign(st,colorSpec);
+    if(state.protStyle==='line') return {line:{opacity:Math.min(1,op+.05),color:0xaab7c9}};
+    return {cartoon:st};
+  }
+
+  function ligStyle(l){
+    var st;
+    if(state.ligStyle==='bs') st={stick:{radius:0.15},sphere:{scale:0.30}};
+    else if(state.ligStyle==='line') st={line:{}};
+    else if(state.ligStyle==='sphere') st={sphere:{scale:0.85}};
+    else st={stick:{radius:0.19}};
+
+    Object.keys(st).forEach(function(rep){
+      if(state.ligColor==='solid'){ st[rep].color = hexNum(l.color); }
+      else if(state.ligColor==='molecule'){
+        var map = Object.assign({}, CPK, {C:hexNum(l.color)});
+        st[rep].colorscheme = {prop:'elem', map:map};
+      } else {
+        st[rep].colorscheme = {prop:'elem', map:CPK};
+      }
+    });
+    return st;
+  }
+
+  /* 收集蛋白显式氢，判定极性氢（与 N/O/S/P 相连）。
+     优先用 3Dmol 推断的键表；PDB 无 CONECT 时再用 1.6 Å 距离兜底。*/
+  function collectProteinH(pa){
+    var HETERO={N:1,O:1,S:1,P:1};
+    var heavy=[], cell=2.0, grid={};
+    pa.forEach(function(a){
+      if(a.elem==='H'){
+        var s=(a.serial!==undefined?a.serial:a.index);
+        PROTEIN_H.all.push(s);
+        PROTEIN_H.bySerial[s]={resi:a.resi, chain:a.chain, atom:a.atom};
+      } else {
+        heavy.push(a);
+        var k=Math.floor(a.x/cell)+','+Math.floor(a.y/cell)+','+Math.floor(a.z/cell);
+        (grid[k]||(grid[k]=[])).push(a);
+      }
+    });
+    function nearHetero(a){
+      var cx=Math.floor(a.x/cell), cy=Math.floor(a.y/cell), cz=Math.floor(a.z/cell);
+      for(var i=-1;i<=1;i++) for(var j=-1;j<=1;j++) for(var k=-1;k<=1;k++){
+        var bk=grid[(cx+i)+','+(cy+j)+','+(cz+k)];
+        if(!bk) continue;
+        for(var n=0;n<bk.length;n++){
+          var b=bk[n];
+          if(!HETERO[b.elem]) continue;
+          var dx=a.x-b.x, dy=a.y-b.y, dz=a.z-b.z;
+          if(dx*dx+dy*dy+dz*dz < 2.56) return true;
+        }
+      }
+      return false;
+    }
+    pa.forEach(function(a){
+      if(a.elem!=='H') return;
+      var s=(a.serial!==undefined?a.serial:a.index), polar=false;
+      var bs=a.bonds||[];
+      for(var i=0;i<bs.length;i++){
+        var nb=(bs[i] && typeof bs[i]==='object') ? bs[i] : pa[bs[i]];
+        if(nb && HETERO[nb.elem]){ polar=true; PROTEIN_H.nPolarBonds++; break; }
+      }
+      if(!polar && nearHetero(a)){ polar=true; PROTEIN_H.nPolarDist++; }
+      if(polar) PROTEIN_H.polar.push(s);
+    });
+  }
+
+  /* 口袋残基：蛋白重原子与可见配体重原子的距离 */
+  var pocketCache=[];
+  function computePocket(){
+    var vis=visibleLigs();
+    if(!vis.length || !P) return [];
+    var pa = P.selectedAtoms({}).filter(function(a){ return a.elem!=='H'; });
+    var la = [];
+    vis.forEach(function(l){
+      if(!l.model) return;
+      l.model.selectedAtoms({}).forEach(function(a){ if(a.elem!=='H') la.push(a); });
+    });
+    if(!la.length) return [];
+    var cut2 = state.pocketCutoff*state.pocketCutoff;
+    /* 先把配体原子装进 3 Å 网格，避免大分子两两比较 */
+    var grid={}, cell=3.0;
+    la.forEach(function(a){
+      var k=Math.floor(a.x/cell)+','+Math.floor(a.y/cell)+','+Math.floor(a.z/cell);
+      (grid[k]||(grid[k]=[])).push(a);
+    });
+    var found={};
+    pa.forEach(function(a){
+      var cx=Math.floor(a.x/cell), cy=Math.floor(a.y/cell), cz=Math.floor(a.z/cell);
+      var reach=Math.ceil(state.pocketCutoff/cell);
+      for(var i=-reach;i<=reach;i++) for(var j=-reach;j<=reach;j++) for(var k=-reach;k<=reach;k++){
+        var bucket=grid[(cx+i)+','+(cy+j)+','+(cz+k)];
+        if(!bucket) continue;
+        for(var n=0;n<bucket.length;n++){
+          var b=bucket[n], dx=a.x-b.x, dy=a.y-b.y, dz=a.z-b.z;
+          var d2=dx*dx+dy*dy+dz*dz;
+          if(d2<cut2){
+            var key=(a.chain||'')+':' + a.resi;
+            var r=found[key];
+            if(!r){ r=found[key]={chain:a.chain,resi:a.resi,resn:a.resn,min:99,ca:null}; }
+            r.min=Math.min(r.min,Math.sqrt(d2));
+            if(a.atom==='CA'||a.atom==='CA ') r.ca={x:a.x,y:a.y,z:a.z};
+            return;
+          }
+        }
+      }
+    });
+    return Object.keys(found).map(function(k){return found[k];})
+      .sort(function(a,b){return (a.resi|0)-(b.resi|0);});
+  }
+
+  function clearMeasure(){
+    measureShapes.forEach(function(s){
+      try{viewer.removeShape(s);}catch(e){}
+      try{viewer.removeLabel(s);}catch(e){}
+    });
+    measureShapes=[]; measurePoints=[];
+  }
+  function redrawMeasureLabels(){
+    try{viewer.removeAllLabels();}catch(e){}
+  }
+
+  function applyStyles(){
+    if(!viewer) return;
+    viewer.setStyle({}, {});                       /* 清空所有样式 */
+    viewer.removeAllLabels();
+
+    if(state.proteinVisible && P){
+      if(state.protStyle==='trace'){
+        viewer.setStyle({model:P, atom:'CA'}, {line:{color:0x7c8ca6}});
+      } else {
+        viewer.setStyle({model:P}, protStyle());
+      }
+    }
+
+    pocketCache = (state.pocket && state.proteinVisible) ? computePocket() : [];
+    if(pocketCache.length){
+      var map = Object.assign({}, CPK, {C:0xa9b5c7});
+      viewer.addStyle({model:P, resi:pocketCache.map(function(r){return r.resi;})},
+                      {stick:{radius:0.13, colorscheme:{prop:'elem',map:map}}});
+      if(state.pocketLabels){
+        pocketCache.slice(0,30).forEach(function(r){
+          if(!r.ca) return;
+          viewer.addLabel(r.resn+' '+r.resi, {
+            position:{x:r.ca.x,y:r.ca.y,z:r.ca.z}, fontSize:10, fontColor:'#334155',
+            backgroundColor:'#ffffff', backgroundOpacity:.78, borderThickness:0,
+            showBackground:true, inFront:false
+          });
+        });
+      }
+    }
+
+    /* 蛋白氢：与配体同一套三档规则。极性 H 与所在区域的蛋白原子使用完全相同的
+       style / 配色（line 或口袋侧链 stick），不单独加球形高亮；cartoon 不画单原子。*/
+    if(state.proteinVisible && P && PROTEIN_H.all.length){
+      viewer.setStyle({model:P, elem:'H'}, {});          /* 先清空所有蛋白 H */
+      if(state.hMode!=='none'){
+        var hser = state.hMode==='polar' ? PROTEIN_H.polar : PROTEIN_H.all;
+        if(hser.length){
+          var resiSet={};
+          pocketCache.forEach(function(r){ resiSet[r.resi]=1; });
+          var pin=[], pout=[];
+          hser.forEach(function(s){
+            var info=PROTEIN_H.bySerial[s];
+            (info && resiSet[info.resi] ? pin : pout).push(s);
+          });
+          if(pin.length){                              /* 口袋残基内：与同残基重原子完全同款 */
+            var pmap=Object.assign({}, CPK, {C:0xa9b5c7});
+            var pinSt=Object.assign({}, protStyle(),
+              {stick:{radius:0.13, colorscheme:{prop:'elem', map:pmap}}});
+            viewer.setStyle({model:P, serial:pin}, pinSt);
+          }
+          if(pout.length && state.protStyle==='line'){  /* 全原子线框：与其它蛋白原子同为 line */
+            viewer.setStyle({model:P, serial:pout}, protStyle());
+          }
+        }
+      }
+    }
+
+    LIGS.forEach(function(l){
+      if(!state.visible[l.id] || !l.model) return;
+      var st = ligStyle(l);
+      viewer.setStyle({model:l.model}, st);
+      if(state.hMode!=='all'){
+        viewer.setStyle({model:l.model, elem:'H'}, {});        /* 先隐藏全部 H */
+        if(state.hMode==='polar' && l.polarSerials.length){
+          /* 极性 H 与其余原子使用完全相同的 style / 配色，不单独加球形高亮 */
+          viewer.addStyle({model:l.model, serial:l.polarSerials}, st);
+        }
+      }
+    });
+
+    /* 测量线（重新渲染后重建） */
+    if(measurePoints.length===2){
+      drawMeasure(measurePoints[0], measurePoints[1], false);
+    }
+    viewer.render();
+    renderLegend();
+    updateStatus();
+    saveState();
+  }
+
+  function updateSurface(){
+    if(!viewer) return;
+    try{ viewer.removeAllSurfaces(); }catch(e){}
+    if(state.surface && state.proteinVisible && P && !surfaceBusy){
+      try{
+        var type = (M3D.SurfaceType && M3D.SurfaceType.VDW) ? M3D.SurfaceType.VDW : 'VDW';
+        var r = viewer.addSurface(type, {opacity:0.22, color:0xc3d0e2}, {model:P});
+        if(r && typeof r.then==='function'){ surfaceBusy=true; r.then(function(){surfaceBusy=false;viewer.render();},
+                                                                    function(){surfaceBusy=false;}); }
+      }catch(e){ toast('表面生成不可用：'+e.message); }
+    }
+    viewer.render();
+  }
+
+  function updateStatus(){
+    var vis=visibleLigs().length, total=LIGS.length;
+    var bits=['可见配体 '+vis+' / '+total, '蛋白 '+(state.proteinVisible?'开':'关')];
+    if(pocketCache.length) bits.push('口袋残基 '+pocketCache.length+' 个 @ '+state.pocketCutoff.toFixed(1)+' Å');
+    if(state.measure) bits.push('测量模式：依次点击两个原子');
+    setStatus(bits.join('  ·  '));
+  }
+
+  /* 搜索：名称 + 任意 SDF 属性（SMILES、IC50、标签…都可以搜） */
+  function matchQuery(l,q){
+    if(!q) return true;
+    if(l.name.toLowerCase().indexOf(q)>=0) return true;
+    var p=l.props||{}, hit=false;
+    Object.keys(p).forEach(function(k){
+      if(!hit && String(p[k]).toLowerCase().indexOf(q)>=0) hit=true;
+    });
+    return hit;
+  }
+
+  /* ---------------- 列表 ---------------- */
+  function renderList(){
+    var q=state.search.trim().toLowerCase();
+    var gs=groups.filter(function(g){
+      return !q || g.items.some(function(l){ return matchQuery(l,q); });
+    }).map(function(g){
+      return {name:g.name,color:g.color,items:g.items.filter(function(l){ return matchQuery(l,q); })};
+    });
+
+    if(state.sort==='name') gs.sort(function(a,b){return a.name.localeCompare(b.name,undefined,{numeric:true});});
+    else if(SORT_KEYS[state.sort]){
+      var key=SORT_KEYS[state.sort];
+      gs.sort(function(a,b){
+        var x=num((a.items[0].props||{})[key]), y=num((b.items[0].props||{})[key]);
+        if(x===null && y===null) return 0;
+        if(x===null) return 1;
+        if(y===null) return -1;
+        return x-y;
+      });
+    }
+
+    var html='';
+    gs.forEach(function(g){
+      if(g.items.length>1){
+        var allOn=g.items.every(function(l){return !!state.visible[l.id];});
+        html+='<div class="lig-group-head" data-group="'+esc(g.name)+'">'+
+          '<input type="checkbox" data-groupchk="'+esc(g.name)+'" '+(allOn?'checked':'')+'>'+
+          '<span class="swatch" style="background:'+g.color+'"></span>'+
+          '<span style="flex:1">'+esc(g.name)+'</span>'+
+          '<span class="hint">'+g.items.length+' poses</span></div>';
+      }
+      g.items.forEach(function(l){
+        var on=!!state.visible[l.id];
+        html+='<div class="lig-item'+(on?'':' dim')+(state.active===l.id?' active':'')+'" data-id="'+l.id+'">'+
+          '<input type="checkbox" data-chk="'+l.id+'" '+(on?'checked':'')+'>'+
+          '<span class="swatch" style="background:'+l.color+'"></span>'+
+          '<span class="lig-name" data-name="'+l.id+'">'+esc(l.name)+
+             (g.items.length>1?' <span class="hint">#'+l.pose+'</span>':'')+'</span>'+
+          (l.err?'<span class="lig-err">解析失败</span>':'<span class="lig-meta">'+ligMeta(l)+'</span>')+
+          '<button class="mini" data-focus="'+l.id+'">聚焦</button>'+
+          '</div>';
+      });
+    });
+    if(!gs.length) html='<div class="empty">没有匹配的分子</div>';
+    $('ligList').innerHTML=html;
+    $('listCount').textContent='显示 '+gs.reduce(function(s,g){return s+g.items.length;},0)+' / '+LIGS.length+' 个 pose，'+groups.length+' 个分子';
+  }
+
+  function renderLegend(){
+    var vis=visibleLigs();
+    if(!vis.length){ $('legend').classList.add('hidden'); return; }
+    $('legend').classList.remove('hidden');
+    var h='<div class="lg-title">当前显示</div>';
+    vis.slice(0,8).forEach(function(l){
+      h+='<div class="lg-row"><span class="swatch" style="background:'+l.color+'"></span><span>'+esc(l.name)+
+         (l.pose>1?' #'+l.pose:'')+'</span></div>';
+    });
+    if(vis.length>8) h+='<div class="lg-row"><span class="hint">… 另有 '+(vis.length-8)+' 个</span></div>';
+    $('legend').innerHTML=h;
+  }
+
+  function showDetail(l){
+    state.active=l.id;
+    var p=l.props||{}, h='<div class="dt-head"><span class="swatch" style="background:'+l.color+'"></span>'+
+      '<b>'+esc(l.name)+'</b><button class="close" id="dtClose">×</button></div>';
+    h+='<table><tr><td>重原子数</td><td>'+l.nHeavy+'</td></tr>'+
+       '<tr><td>氢原子</td><td>共 '+l.nH+' 个，极性氢 '+l.nPolarH+' 个</td></tr>'+
+       '<tr><td>SDF 序号 / pose</td><td>'+(l.id+1)+' / '+l.pose+'</td></tr>';
+    var mapped={};
+    KEY_FIELDS.forEach(function(f){
+      mapped[f[0]]=1;
+      if(p[f[0]]!==undefined && p[f[0]]!=='') h+='<tr><td>'+esc(f[1])+'</td><td>'+esc(p[f[0]])+'</td></tr>';
+    });
+    /* 新数据里未在别名表中的数值属性（IC50、pIC50 等）也直接列出，不必展开折叠区 */
+    Object.keys(p).filter(function(k){
+      return !mapped[k] && p[k]!=='' && num(p[k])!==null;
+    }).slice(0,8).forEach(function(k){
+      h+='<tr><td>'+esc(k)+'</td><td>'+esc(p[k])+'</td></tr>';
+    });
+    h+='</table><details><summary>全部属性（'+Object.keys(p).length+' 项）</summary><table>';
+    Object.keys(p).forEach(function(k){ h+='<tr><td>'+esc(k)+'</td><td>'+esc(p[k])+'</td></tr>'; });
+    h+='</table></details>';
+    $('detail').innerHTML=h;
+    $('detail').classList.remove('hidden');
+    $('dtClose').onclick=function(){ $('detail').classList.add('hidden'); state.active=-1; renderList(); };
+    renderList();
+  }
+
+  /* ---------------- 视图操作 ---------------- */
+  function focusVisible(){
+    var ms=visibleModels();
+    if(!ms.length){ viewer.zoomTo(); viewer.render(); return; }
+    try{
+      viewer.zoomTo({model:ms});
+      viewer.zoom(0.40);
+    }catch(e){ viewer.zoomTo(); }
+    viewer.render();
+  }
+  function focusOne(l){
+    if(!l || !l.model) return;
+    viewer.zoomTo({model:l.model});
+    viewer.zoom(0.45);
+    viewer.render();
+  }
+  function overall(){ viewer.zoomTo(); viewer.render(); }
+
+  function exportPNG(){
+    try{
+      viewer.render();
+      var uri=viewer.pngURI();
+      var a=document.createElement('a');
+      a.href=uri;
+      a.download='mol3d_'+(D.meta.pdbId||'view')+'_'+new Date().toISOString().slice(0,10)+'.png';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      toast('已导出 PNG 图片');
+    }catch(e){ toast('导出失败：'+e.message); }
+  }
+
+  function drawMeasure(a,b,announce){
+    clearMeasure();
+    measurePoints=[a,b];
+    try{
+      measureShapes.push(viewer.addLine({start:{x:a.x,y:a.y,z:a.z},end:{x:b.x,y:b.y,z:b.z},
+                                        color:'#e11d48',dashed:true,linewidth:2}));
+      [a,b].forEach(function(p){
+        measureShapes.push(viewer.addSphere({center:{x:p.x,y:p.y,z:p.z},radius:0.20,color:'#e11d48'}));
+      });
+      var d=Math.sqrt(Math.pow(a.x-b.x,2)+Math.pow(a.y-b.y,2)+Math.pow(a.z-b.z,2));
+      measureShapes.push(viewer.addLabel(d.toFixed(2)+' Å',{
+        position:{x:(a.x+b.x)/2,y:(a.y+b.y)/2,z:(a.z+b.z)/2},
+        fontSize:13,fontColor:'#ffffff',backgroundColor:'#e11d48',
+        backgroundOpacity:.9,showBackground:true,borderThickness:0,inFront:true
+      }));
+      if(announce) toast('两点距离 '+d.toFixed(2)+' Å  |  '+atomDesc(a)+'  ↔  '+atomDesc(b)+'（再次点击开始新测量）');
+    }catch(e){ toast('绘制测量标记失败：'+e.message); }
+    viewer.render();
+  }
+  function atomDesc(a){
+    if(a.__kind==='protein') return (a.resn||'?')+' '+(a.resi||'?')+':' +(a.atom||a.elem);
+    return (a.__lig||'配体')+':' + (a.elem||'?');
+  }
+
+  /* ---------------- 状态持久化 / 分享链接 ---------------- */
+  function saveState(){
+    try{
+      localStorage.setItem(STATE_KEY, JSON.stringify({
+        visible:LIGS.filter(function(l){return !!state.visible[l.id];}).map(function(l){return l.id;}),
+        proteinVisible:state.proteinVisible, protStyle:state.protStyle, protColor:state.protColor,
+        protOpacity:state.protOpacity, pocket:state.pocket, pocketCutoff:state.pocketCutoff,
+        ligStyle:state.ligStyle, ligColor:state.ligColor, hMode:state.hMode,
+        surface:state.surface, bg:state.bg
+      }));
+    }catch(e){}
+    writeHash();
+  }
+  function writeHash(){
+    try{
+      var ids=LIGS.filter(function(l){return !!state.visible[l.id];}).map(function(l){return l.id;});
+      var h='#v='+(ids.length?ids.join('-'):'none')+'&p='+(state.proteinVisible?1:0)+'&k='+(state.pocket?1:0);
+      if(location.hash!==h) history.replaceState(null,'',location.pathname+location.search+h);
+    }catch(e){}
+  }
+  function loadState(){
+    var fromHash=null, m=/[#&]v=([^&]*)/.exec(location.hash);
+    if(m) fromHash = m[1]==='none'?[]:m[1].split('-').map(Number).filter(function(x){return !isNaN(x);});
+    var pk=/[#&]k=(\d)/.exec(location.hash), pv=/[#&]p=(\d)/.exec(location.hash);
+    if(pk) state.pocket = pk[1]==='1';
+    if(pv) state.proteinVisible = pv[1]==='1';
+    try{
+      var s=JSON.parse(localStorage.getItem(STATE_KEY)||'null');
+      if(s && !fromHash){
+        state.proteinVisible=s.proteinVisible; state.protStyle=s.protStyle||state.protStyle;
+        state.protColor=s.protColor||state.protColor; state.protOpacity=s.protOpacity||state.protOpacity;
+        state.pocket=!!s.pocket; state.pocketCutoff=s.pocketCutoff||state.pocketCutoff;
+        state.ligStyle=s.ligStyle||state.ligStyle; state.ligColor=s.ligColor||state.ligColor;
+        state.hMode=s.hMode||state.hMode;
+        state.surface=!!s.surface; state.bg=s.bg||state.bg;
+        (s.visible||[]).forEach(function(i){ if(LIGS[i]) state.visible[i]=true; });
+        return;
+      }
+    }catch(e){}
+    if(fromHash) fromHash.forEach(function(i){ if(LIGS[i]) state.visible[i]=true; });
+    else state.visible[0]=true;           /* 默认只显示第一个（参考）分子 */
+  }
+
+  function syncControls(){
+    $('proteinOn').checked=state.proteinVisible;
+    $('surfaceOn').checked=state.surface;
+    $('pocketOn').checked=state.pocket;
+    $('pocketOpts').style.display=state.pocket?'flex':'none';
+    $('pocketLabelRow').style.display=state.pocket?'flex':'none';
+    $('pocketLabels').checked=state.pocketLabels;
+    $('pocketCut').value=Math.round(state.pocketCutoff*10);
+    $('pocketCutVal').textContent=state.pocketCutoff.toFixed(1)+' Å';
+    $('protOpacity').value=Math.round(state.protOpacity*100);
+    $('opacityVal').textContent=Math.round(state.protOpacity*100)+'%';
+    setSeg('hSeg',state.hMode);
+    $('sortSel').value=state.sort;
+    Array.prototype.forEach.call($('sortSel').options,function(o){
+      if(!SORT_KEYS.hasOwnProperty(o.value)) return;
+      o.disabled=!SORT_KEYS[o.value];
+      o.title=o.disabled ? '当前 SDF 中未找到该字段' : ('对应字段：'+SORT_KEYS[o.value]);
+    });
+    $('search').value=state.search;
+    setSeg('protStyleSeg',state.protStyle);
+    setSeg('protColorSeg',state.protColor);
+    setSeg('ligStyleSeg',state.ligStyle);
+    setSeg('ligColorSeg',state.ligColor);
+    setSeg('bgSeg',state.bg);
+    $('btnSpin').classList.toggle('on',state.spin);
+    $('btnMeasure').classList.toggle('on',state.measure);
+    $('hudPocket').classList.toggle('on',state.pocket);
+    $('hudSurface').classList.toggle('on',state.surface);
+    $('hudLabels').classList.toggle('on',state.pocketLabels);
+  }
+  function setSeg(id,val){
+    Array.prototype.forEach.call($(id).querySelectorAll('button'),function(b){
+      b.classList.toggle('on',b.dataset.v===val);
+    });
+  }
+  function bindSeg(id,key,after){
+    $(id).addEventListener('click',function(e){
+      var b=e.target.closest('button'); if(!b) return;
+      state[key]=b.dataset.v; setSeg(id,b.dataset.v);
+      if(after) after();
+    });
+  }
+
+  /* ---------------- 事件绑定 ---------------- */
+  function bindUI(){
+    $('proteinOn').onchange=function(){ state.proteinVisible=this.checked; applyStyles(); updateSurface(); saveState(); };
+    $('surfaceOn').onchange=function(){ state.surface=this.checked; syncControls(); updateSurface(); saveState(); };
+    $('pocketOn').onchange=function(){ state.pocket=this.checked; syncControls(); applyStyles(); };
+    $('pocketLabels').onchange=function(){ state.pocketLabels=this.checked; applyStyles(); };
+    $('pocketCut').oninput=function(){
+      state.pocketCutoff=parseInt(this.value,10)/10;
+      $('pocketCutVal').textContent=state.pocketCutoff.toFixed(1)+' Å';
+      applyStyles(); saveState();
+    };
+    $('protOpacity').oninput=function(){
+      state.protOpacity=parseInt(this.value,10)/100;
+      $('opacityVal').textContent=this.value+'%'; applyStyles();
+    };
+    bindSeg('hSeg','hMode',applyStyles);
+    bindSeg('protStyleSeg','protStyle',applyStyles);
+    bindSeg('protColorSeg','protColor',applyStyles);
+    bindSeg('ligStyleSeg','ligStyle',applyStyles);
+    bindSeg('ligColorSeg','ligColor',applyStyles);
+    bindSeg('bgSeg','bg',function(){
+      viewer.setBackgroundColor(BG[state.bg]);
+      $('stage').style.background=BG[state.bg];
+      viewer.render(); saveState();
+    });
+
+    $('search').oninput=function(){ state.search=this.value; renderList(); };
+    $('sortSel').onchange=function(){ state.sort=this.value; renderList(); };
+    $('selAll').onclick=function(){ LIGS.forEach(function(l){state.visible[l.id]=true;}); renderList(); applyStyles(); };
+    $('selNone').onclick=function(){ state.visible={}; renderList(); applyStyles(); };
+    $('selOnlyRef').onclick=function(){ state.visible={}; state.visible[0]=true; renderList(); applyStyles(); focusVisible(); };
+
+    $('ligList').addEventListener('change',function(e){
+      var t=e.target;
+      if(t.dataset.chk!==undefined){
+        var id=+t.dataset.chk;
+        if(t.checked) state.visible[id]=true; else delete state.visible[id];
+        renderList(); applyStyles();
+      } else if(t.dataset.groupchk!==undefined){
+        var g=gmap[t.dataset.groupchk];
+        g.items.forEach(function(l){ if(t.checked) state.visible[l.id]=true; else delete state.visible[l.id]; });
+        renderList(); applyStyles();
+      }
+    });
+    $('ligList').addEventListener('click',function(e){
+      var f=e.target.closest('[data-focus]'), n=e.target.closest('[data-name]');
+      if(f){ var l=LIGS[+f.dataset.focus]; state.visible[l.id]=true; showDetail(l); focusOne(l); applyStyles(); return; }
+      if(n){ var l2=LIGS[+n.dataset.name]; state.visible[l2.id]=true; showDetail(l2); focusOne(l2); applyStyles(); }
+    });
+
+    $('btnFocus').onclick=$('hudFocus').onclick=focusVisible;
+    $('btnOverall').onclick=$('hudOverall').onclick=overall;
+    $('btnPng').onclick=exportPNG;
+    $('btnSpin').onclick=function(){
+      state.spin=!state.spin;
+      try{ state.spin?viewer.spin('y',1):viewer.spin(false); }catch(e){ toast('旋转不可用'); }
+      this.classList.toggle('on',state.spin);
+    };
+    $('btnMeasure').onclick=function(){
+      state.measure=!state.measure; clearMeasure(); viewer.render();
+      this.classList.toggle('on',state.measure);
+      toast(state.measure?'测量模式：请依次点击两个原子':'已退出测量模式');
+    };
+    $('btnCopyLink').onclick=function(){
+      writeHash();
+      var url=location.href;
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(url).then(function(){toast('已复制：'+url);},function(){prompt('复制此链接：',url);});
+      } else { prompt('复制此链接：',url); }
+      toast('链接已处理：把地址中 # 及之后的部分发给同事即可复现当前选择');
+    };
+    $('btnReset').onclick=function(){
+      try{ localStorage.removeItem(STATE_KEY); }catch(e){}
+      state.visible={}; state.visible[0]=true;
+      state.proteinVisible=true; state.protStyle='cartoon'; state.protColor='ss'; state.protOpacity=.92;
+      state.surface=false; state.pocket=false; state.pocketCutoff=4.5; state.pocketLabels=false;
+      state.ligStyle='stick'; state.ligColor='molecule'; state.hMode='polar'; state.bg='light';
+      state.search=''; state.sort='file';
+      clearMeasure(); state.measure=false;
+      viewer.setBackgroundColor(BG.light); $('stage').style.background=BG.light;
+      syncControls(); renderList(); applyStyles(); updateSurface(); focusVisible();
+      toast('已恢复默认视图');
+    };
+    $('hudPocket').onclick=function(){ state.pocket=!state.pocket; syncControls(); applyStyles(); };
+    $('hudSurface').onclick=function(){ state.surface=!state.surface; syncControls(); updateSurface(); saveState(); };
+    $('hudLabels').onclick=function(){ state.pocketLabels=!state.pocketLabels; syncControls(); applyStyles(); };
+
+    $('helpBtn').onclick=function(){ $('help').classList.remove('hidden'); };
+    $('helpClose').onclick=function(){ $('help').classList.add('hidden'); };
+    $('help').onclick=function(e){ if(e.target===this) this.classList.add('hidden'); };
+    $('togglePanel').onclick=function(){ $('panel').classList.toggle('open'); };
+
+    document.addEventListener('keydown',function(e){
+      if(e.key==='Escape'){ $('help').classList.add('hidden'); return; }
+      if(/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
+      var k=e.key.toLowerCase();
+      if(k==='r') overall();
+      else if(k==='f') focusVisible();
+      else if(k==='h') $('panel').classList.toggle('open');
+      else if(k==='/'){ e.preventDefault(); $('search').focus(); }
+    });
+    window.addEventListener('resize',function(){ if(viewer) viewer.resize(); });
+  }
+
+  /* ---------------- 初始化 ---------------- */
+  function init(){
+    try{
+      viewer = M3D.createViewer($('viewport'), {antialias:true, backgroundColor:0xffffff});
+      if(!viewer) throw new Error('WebGL 初始化失败');
+      window.mol3dViewer = viewer;           /* 暴露句柄，便于调试与二次开发 */
+    }catch(e){
+      $('loading').innerHTML='<div style="max-width:420px;text-align:center;line-height:1.8">'+
+        '无法创建 3D 视图：'+esc(e.message)+'<br>请用 Chrome / Edge 打开，并确认已启用 WebGL。</div>';
+      return;
+    }
+
+    /* 蛋白：保留 PDB 中的显式氢（keepH），与配体共用「隐藏 / 仅极性 / 全部氢」三档 */
+    try{ P = viewer.addModel(D.protein,'pdb',{keepH:true}); }catch(e){ P=null; }
+    if(P){
+      var pa=P.selectedAtoms({});
+      pa.forEach(function(a){ a.__kind='protein'; });
+      collectProteinH(pa);
+    } else { toast('警告：蛋白解析失败'); }
+
+    /* 每个 pose 单独一个 model，便于独立显示 / 隐藏 / 聚焦 */
+    /* 极性氢：从键表找出与 N/O/S/P 相连的 H，记录其 serial 供样式选择 */
+    var HETERO={N:1,O:1,S:1,P:1};
+    var ok=0;
+    LIGS.forEach(function(l){
+      try{
+        l.model=viewer.addModel(l.mol,'sdf');
+        var atoms=l.model ? l.model.selectedAtoms({}) : [];
+        l.nAtoms=atoms.length;
+        if(!atoms.length){ l.err='0 atoms'; }
+        else ok++;
+        atoms.forEach(function(a){
+          a.__kind='ligand'; a.__lig=l.name; a.__color=l.color;
+          if(a.elem!=='H') return;
+          l.nH++;
+          var bs=a.bonds||[];
+          for(var i=0;i<bs.length;i++){
+            var nb=(bs[i] && typeof bs[i]==='object') ? bs[i] : atoms[bs[i]];
+            if(nb && HETERO[nb.elem]){
+              l.polarSerials.push(a.serial!==undefined ? a.serial : a.index);
+              break;
+            }
+          }
+        });
+        l.nPolarH=l.polarSerials.length;
+      }catch(e){ l.err=String(e.message||e); l.model=null; }
+    });
+    if(!ok) toast('警告：所有配体解析失败，请检查 SDF 格式');
+
+    /* 原子悬停 / 点击 */
+    viewer.setHoverable({},true,function(atom,v,evt){
+      evt=evt||{clientX:0,clientY:0};
+      var tip=$('tooltip');
+      var txt=atomDesc(atom);
+      if(atom.__kind==='protein') txt+=' · 链 '+(atom.chain||'—');
+      txt+=' · '+atom.elem+' @ '+atom.x.toFixed(1)+', '+atom.y.toFixed(1)+', '+atom.z.toFixed(1);
+      tip.textContent=txt; tip.classList.remove('hidden');
+      var box=$('stage').getBoundingClientRect();
+      tip.style.left=Math.min(box.width-240,(evt.clientX-box.left)+14)+'px';
+      tip.style.top=Math.min(box.height-60,(evt.clientY-box.top)+14)+'px';
+    },function(){ $('tooltip').classList.add('hidden'); });
+    viewer.setClickable({},true,function(atom){
+      if(!state.measure){ showDetailForAtom(atom); return; }
+      if(measurePoints.length>=2) clearMeasure();
+      measurePoints.push({x:atom.x,y:atom.y,z:atom.z,__kind:atom.__kind,__lig:atom.__lig,
+                          resn:atom.resn,resi:atom.resi,atom:atom.atom,elem:atom.elem,chain:atom.chain});
+      if(measurePoints.length===2) drawMeasure(measurePoints[0],measurePoints[1],true);
+      else { toast('已选第一个原子（'+atomDesc(atom)+'），请点击第二个原子'); viewer.render(); }
+    });
+
+    function showDetailForAtom(atom){
+      if(atom.__kind!=='ligand'){ toast('点击：'+atomDesc(atom)); return; }
+      var l=LIGS.filter(function(x){return x.name===atom.__lig;})[0];
+      if(l) showDetail(l);
+    }
+
+    loadState();
+    syncControls();
+    renderList();
+    bindUI();
+    viewer.setBackgroundColor(BG[state.bg]);
+    $('stage').style.background=BG[state.bg];
+    applyStyles();
+    updateSurface();
+    focusVisible();
+
+    /* 顶部信息与数据说明 */
+    document.title='3D 结构查看器 · '+(D.meta.pdbId||'PDB')+' · '+projectName();
+    $('hdrMeta').textContent=(D.meta.pdbId||'PDB')+' · '+(D.meta.resolution?D.meta.resolution+' Å · ':'')+
+      LIGS.length+' 个 pose';
+    $('hdrTitle').textContent=(D.meta.title||'蛋白-配体复合物').slice(0,72);
+    $('dataInfo').innerHTML=
+      '蛋白：<b>'+esc(D.meta.pdbFile)+'</b>（链 '+esc((D.meta.chains||[]).join('/'))+
+      '，'+D.meta.nProteinAtoms+' 原子）<br>'+
+      '配体：<b>'+esc(D.meta.sdfFile)+'</b>（'+D.meta.nLigands+' poses / '+D.meta.nGroups+' 分子）<br>'+
+      '数据生成：'+esc(D.meta.generated)+' · 渲染：'+esc(D.meta.viewer)+'<br>'+
+      '当前配色中，碳原子按分子着色，其余原子按元素着色。';
+    $('loading').classList.add('hidden');
+    window.mol3d = {viewer:viewer, ligands:LIGS, groups:groups, state:state,
+                    proteinH:PROTEIN_H, protein:P};
+    viewer.resize();
+  }
+
+  setTimeout(init,40);
+})();
+</script>
+</body>
+</html>
