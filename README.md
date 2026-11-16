@@ -7,6 +7,7 @@
 3. 在该目录执行：python build_data.py
    多个文件时显式指定：python build_data.py receptor.pdb hits.sdf
    → 重新生成 data.js，刷新页面即可；最后把文件夹打包分发给同事
+4. 分发：将index.html、3Dmol-min.js、data.js打包，其它文件不需要
 
 比如：
 ```bash
